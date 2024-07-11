@@ -1,0 +1,112 @@
+import "experimental"
+
+
+bucket1_name = "terasort1/autogen"
+bucket2_name = "terasort2/autogen"
+bucket3_name = "terasort3/autogen"
+bucket4_name = "terasort4/autogen"
+bucket5_name = "terasort5/autogen"
+
+
+measurement1_name = "go_memstats_alloc_bytes"
+node_name = "kubeslave2"
+
+
+
+
+getData= (bucketName, measurementName, nodeName) =>{
+    data = from(bucket: bucketName)
+        |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+        |> filter(fn: (r) => r["_measurement"] == measurementName)
+        |> filter(fn: (r) => r["__name__"] == measurementName)
+        |> filter(fn: (r) => r["node"] == nodeName)
+        |> filter(fn: (r) => r["endpoint"] == "https-metrics")
+	  //|> filter(fn: (r) => r["container"] == "prometheus-config-reloader")
+
+
+
+
+
+
+       
+        |> set(key: "WorkBench", value: bucketName)
+        |> group(columns: ["WorkBench"])
+       // |> group(columns: [bucketName]) //can't group by name here since they all have the same name
+        |> aggregateWindow(every: 15m, fn: mean, createEmpty: false)
+      //  |> experimental.alignTime(alignTo: v.timeRangeStart) //align the data at the beginning of the graph
+       // |> timeShift(duration: shiftDuration, columns: ["_start", "_stop", "_time"])
+    return data
+}
+
+
+
+
+
+
+
+
+// Using the function to generate data for each bucket
+t1 = getData(
+    bucketName: bucket1_name,
+    measurementName: measurement1_name,
+    nodeName: node_name,
+)
+
+
+
+
+
+
+
+
+t2 = getData(
+    bucketName: bucket2_name,
+    measurementName: measurement1_name,
+     nodeName: node_name,
+)
+
+
+t3 = getData(
+    bucketName: bucket3_name,
+    measurementName: measurement1_name,
+     nodeName: node_name,
+)
+
+
+t4 = getData(
+    bucketName: bucket4_name,
+    measurementName: measurement1_name,
+     nodeName: node_name,
+)
+
+
+
+
+t5 = getData(
+    bucketName: bucket5_name,
+    measurementName: measurement1_name,
+     nodeName: node_name,
+)
+
+
+
+
+
+
+
+
+
+
+allData1 = union(tables: [t1, t2, t3, t4, t5])
+|> experimental.alignTime(alignTo: v.timeRangeStart)
+|> map(fn: (r) => ({ _time: r._time, WorkBench: r.WorkBench, _value: r._value }))
+//|> yield(name: "dsf")
+
+
+
+
+combinedData1 = allData1
+|> pivot(rowKey: ["_time"], columnKey: ["WorkBench"], valueColumn: "_value")
+|> set(key: "Measurement", value: measurement1_name)
+|> group(columns: ["Measurement"])
+|> yield(name: "sa")

@@ -1,0 +1,138 @@
+//code doesn't work correctly but would be very useful if it does
+import "experimental"
+import "math"
+
+
+
+
+
+
+
+
+bucket1_name = "terasort1/autogen"
+bucket2_name = "rf1/autogen"
+
+
+
+
+node_name = "kubeslave2"
+
+
+
+
+
+
+
+
+
+
+
+
+getData = (bucketName, workoBench) =>{
+    data = from(bucket: bucketName)
+        |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+        |> filter(fn: (r) => r["_measurement"] == "kubelet_cgroup_manager_duration_seconds_bucket" or r["_measurement"] == "kubelet_cgroup_manager_duration_seconds_count" or r["_measurement"] == "kubelet_cgroup_manager_duration_seconds_sum" or r["_measurement"] == "kubelet_cgroup_manager_latency_microseconds_count" or r["_measurement"] == "kubelet_cgroup_manager_latency_microseconds" or r["_measurement"] == "kubelet_cgroup_manager_latency_microseconds_sum")
+        |> filter(fn: (r) => r["node"] == node_name)
+        //|> filter(fn: (r) => r["operation_type"] == "create")
+        |> aggregateWindow(every: 30s, fn: mean, createEmpty: false)
+        |> set(key: "WorkBench", value: workoBench)
+        |> map(fn: (r)=>({ _time: r._time, _value: r._value, _measurement: r._measurement, WorkBench: r.WorkBench}))
+        |> group(columns: ["WorkBench", "_measurement"])
+        //|> yield(name: "fsa")
+    return data
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bucket1 = getData( bucketName: bucket1_name, workoBench: "WorkBench1")
+bucket2 = getData(bucketName: bucket2_name, workoBench: "WorkBench2")
+AllData= union(tables: [bucket1, bucket2])
+//|> yield(name: "fhasadaas")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+stddevStats = AllData
+    |> stddev(column: "_value")
+    //|> map(fn: (r) => ({WorkBench: r.WorkBench, _value: float(v:r._value)}))
+    |> set(key: "Type", value: "Deviation")
+    |> group(columns:["_measurement"])
+    |> filter(fn: (r) =>  r._value > 0) //only show values th are changing
+    //|> yield(name: "fshasadas")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+pivotData = stddevStats
+    |> pivot(rowKey: ["_measurement"], columnKey: ["WorkBench"], valueColumn: "_value")
+    |> group()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    |> map(fn: (r) => ({
+    r with PercentDifference : if exists r.WorkBench1 and exists r.WorkBench2 then
+   ((math.abs(x: r.WorkBench1 - r.WorkBench2)) / ((r.WorkBench1 + r.WorkBench2) / 2.0)) * 100.0
+   else 0.0
+     }))
+        |> sort(columns: ["PercentDifference"], desc: false)
+
+
+
+
+    |> rename(columns: { WorkBench1: bucket1_name, WorkBench2: bucket2_name})
+    |> yield(name: "fhsadas")
+
+
+
+
+

@@ -1,0 +1,63 @@
+// Define the time range
+timeRangeStart = v.timeRangeStart
+timeRangeStop = v.timeRangeStop
+// Define the nodes and containers to filter
+node = "kubeslave2"
+
+
+
+
+
+
+
+
+// Define the measurements
+measurements = ["terasort1", "rf1", "svd1"]
+
+
+
+
+
+
+
+
+allData = union(tables: [
+    from(bucket: "terasort1/autogen")
+      |> range(start: timeRangeStart, stop: timeRangeStop)
+      |> filter(fn: (r) => r["node"] == node)
+      //|> filter(fn: (r) => r["operation_type"] == "update"),
+     
+
+
+
+
+
+
+
+
+    from(bucket: "rf1/autogen")
+      |> range(start: timeRangeStart, stop: timeRangeStop)
+      |> filter(fn: (r) => r["node"] == node)
+     // |> filter(fn: (r) => r["operation_type"] == "update"),
+
+
+
+
+
+
+
+
+    from(bucket: "svd1/autogen")
+      |> range(start: timeRangeStart, stop: timeRangeStop)
+      |> filter(fn: (r) => r["node"] == node)
+      //|> filter(fn: (r) => r["operation_type"] == "update")
+])
+
+
+
+
+|> map(fn: (r) => ({ measurement: r._measurement }))
+|> distinct(column: "measurement")
+
+
+|> yield(name: "distinct_measurements")

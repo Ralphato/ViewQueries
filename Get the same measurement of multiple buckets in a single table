@@ -1,0 +1,116 @@
+//this is used to see if there is any disparency between the runs of a workbench
+import "experimental"
+
+
+measurement1_name = "go_memstats_alloc_bytes"
+measurement2_name = "go_memstats_frees_total"
+node_name = "kubeslave2"
+
+
+getData= (bucketName, measurementName, nodeName) =>{
+    data = from(bucket: bucketName)
+        |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+        |> filter(fn: (r) => r["_measurement"] == measurementName)
+        |> filter(fn: (r) => r["__name__"] == measurementName)
+        |> filter(fn: (r) => r["node"] == nodeName)
+        |> filter(fn: (r) => r["endpoint"] == "https-metrics")
+
+
+       
+        |> set(key: "WorkBench", value: bucketName)
+        |> group(columns: ["WorkBench"])
+       // |> group(columns: [bucketName]) //can't group by name here since they all have the same name
+        |> aggregateWindow(every: 15m, fn: mean, createEmpty: false)
+      //  |> experimental.alignTime(alignTo: v.timeRangeStart) //align the data at the beginning of the graph
+       // |> timeShift(duration: shiftDuration, columns: ["_start", "_stop", "_time"])
+    return data
+}
+
+
+
+
+// Using the function to generate data for each bucket
+t1 = getData(
+    bucketName: "terasort1/autogen",
+    measurementName: measurement1_name,
+    nodeName: node_name,
+
+
+)
+
+
+
+
+t2 = getData(
+    bucketName: "terasort2/autogen",
+    measurementName: measurement1_name,
+     nodeName: node_name,
+)
+
+
+rf1 = getData(
+    bucketName: "rf1/autogen",
+    measurementName: measurement1_name,
+     nodeName: node_name,
+)
+
+
+allData1 = union(tables: [t1, t2, rf1])
+|> experimental.alignTime(alignTo: v.timeRangeStart)
+//|> yield(name: "dsf")
+
+
+
+
+combinedData1 = allData1
+|> pivot(rowKey: ["_time"], columnKey: ["WorkBench"], valueColumn: "_value")
+|> set(key: "Measurement", value: measurement1_name)
+|> group(columns: ["Measurement"])
+|> yield(name: "sa")
+
+
+
+
+
+
+//secon data
+
+
+// Using the function to generate data for each bucket
+t4 = getData(
+    bucketName: "terasort1/autogen",
+    measurementName: measurement2_name,
+    nodeName: node_name,
+
+
+)
+
+
+
+
+t5 = getData(
+    bucketName: "terasort2/autogen",
+    measurementName: measurement2_name,
+     nodeName: node_name,
+)
+
+
+rf2 = getData(
+    bucketName: "rf1/autogen",
+    measurementName: measurement2_name,
+     nodeName: node_name,
+)
+
+
+allData2 = union(tables: [t4, t5, rf2])
+|> experimental.alignTime(alignTo: v.timeRangeStart)
+//|> yield(name: "dsf")
+
+
+
+
+combinedData2 = allData2
+|> pivot(rowKey: ["_time"], columnKey: ["WorkBench"], valueColumn: "_value")
+|> set(key: "Measurement", value: measurement2_name)
+|> group(columns: ["Measurement"])
+|> yield(name: "sa2")

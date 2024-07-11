@@ -1,0 +1,319 @@
+// This can be used as a general baseline to check if there are any differences between the work benches. Then we can use the other stats queries to analyse in more details
+
+
+
+//adding lines in the same graph
+import "experimental"
+import "join"
+
+
+measurement_name = "container_cpu_cfs_periods_total"
+
+
+
+
+//function to get the data from buckets
+generateData = (bucketName, keyValue, yieldName) => {
+    data = from(bucket: bucketName)
+        |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+        |> filter(fn: (r) => r["_measurement"] == measurement_name)
+        |> group(columns: ["__name__"])
+
+
+
+
+        |> aggregateWindow(every: 15m, fn: mean, createEmpty: false) //you can change 15m get data more frequently for example 30s
+        |> set(key: keyValue, value: measurement_name)
+        |> group(columns: [keyValue])
+        //|> yield(name: yieldName) //uncomment this value to view the individual data for each each run
+        return data
+}
+
+
+
+
+//function to get the average of the same measurement accross 5 runs
+getAverage = (unionData, workBenchName) =>{
+aggregatedData = unionData
+  |> group(columns: ["_time"] )  // Group by time to ensure we aggregate only data that has the same timestamp
+  |> reduce(fn: (r, accumulator) => ({
+      sum: accumulator.sum + r._value,
+      count: accumulator.count + 1.0,
+      name: r.__name__,
+      workBench: workBenchName
+    }), identity: {sum: 0.0, count: 0.0, name: "", workBench: ""})
+    |> group(columns: ["workBench"] )
+  |> map(fn: (r) => ({
+      _time: r._time,
+      name: r.name,
+      workBench: r.workBench,
+      //count: r.count,
+      average: r.sum / r.count
+    }))
+return aggregatedData
+}
+
+
+
+
+
+
+
+
+//get the required data
+//teraSort with measurement: "container_cpu_cfs_periods_total"
+t1 = generateData(
+    bucketName: "terasort1/autogen",
+    keyValue: "terasort1",
+    yieldName: "mean1"
+)
+
+
+
+
+
+
+
+
+t2 = generateData(
+    bucketName: "terasort2/autogen",
+    keyValue: "terasort2",
+    yieldName: "mean2"
+)
+
+
+
+
+t3 = generateData(
+    bucketName: "terasort3/autogen",
+    keyValue: "terasort3",
+    yieldName: "mean3"
+)
+
+
+
+
+t4 = generateData(
+    bucketName: "terasort4/autogen",
+    keyValue: "terasort4",
+    yieldName: "mean4"
+)
+
+
+
+
+t5 = generateData(
+    bucketName: "terasort5/autogen",
+    keyValue: "terasort5",
+    yieldName: "mean5"
+)
+
+
+
+
+//random forest with measurement: "container_cpu_cfs_periods_total"
+
+
+
+
+rf1 = generateData(
+bucketName: "rf1/autogen",
+keyValue: "rf1",
+yieldName: "meanrf1"
+)
+
+
+
+
+rf2 = generateData(
+bucketName: "rf2/autogen",
+keyValue: "rf2",
+yieldName: "meanrf2"
+)
+
+
+
+
+rf3 = generateData(
+bucketName: "rf3/autogen",
+keyValue: "rf3",
+yieldName: "meanrf3"
+)
+
+
+
+
+rf4 = generateData(
+bucketName: "rf4/autogen",
+keyValue: "rf4",
+yieldName: "meanrf4"
+)
+
+
+
+
+rf5 = generateData(
+bucketName: "rf5/autogen",
+keyValue: "rf5",
+yieldName: "meanrf5"
+)
+
+
+
+
+//for svd
+svd1 = generateData(
+bucketName: "svd1/autogen",
+keyValue: "svd1",
+yieldName: "meansvd1"
+)
+
+
+
+
+svd2 = generateData(
+bucketName: "svd2/autogen",
+keyValue: "svd2",
+yieldName: "meansvd2"
+)
+
+
+
+
+svd3 = generateData(
+bucketName: "svd3/autogen",
+keyValue: "svd3",
+yieldName: "meansvd3"
+)
+
+
+
+
+svd4 = generateData(
+bucketName: "svd4/autogen",
+keyValue: "svd4",
+yieldName: "meansvd4"
+)
+
+
+
+
+svd5 = generateData(
+bucketName: "svd5/autogen",
+keyValue: "svd5",
+yieldName: "meansvd5"
+)
+
+
+
+
+
+
+wc1 = generateData(
+bucketName: "wc1/autogen",
+keyValue: "wc1",
+yieldName: "meanwc1"
+)
+
+
+
+
+wc2 = generateData(
+bucketName: "wc2/autogen",
+keyValue: "wc2",
+yieldName: "meanwc2"
+)
+
+
+
+
+wc3 = generateData(
+bucketName: "wc3/autogen",
+keyValue: "wc3",
+yieldName: "meanwc3"
+)
+
+
+
+
+wc4 = generateData(
+bucketName: "wc4/autogen",
+keyValue: "wc4",
+yieldName: "meanwc4"
+)
+
+
+
+
+wc5 = generateData(
+bucketName: "wc5/autogen",
+keyValue: "wc5",
+yieldName: "meanwc5"
+)
+
+
+//for terasort
+unionData = union(tables: [t1, t2, t3, t4, t5]) //combine all the data of terasort in a single table
+|> experimental.alignTime(alignTo: v.timeRangeStart) //adds all the terasort data on the same timestamp so that the data can be grouped by time otherwise there is no common value to group
+
+
+
+
+averagedDataTerasort = getAverage(unionData: unionData, workBenchName: "Terasort") //gets the average value based on each timestamp
+  |> yield(name: "averagedData")
+
+
+
+
+//for rf
+unionDataRf = union(tables: [rf1, rf2, rf3, rf4, rf5])
+ |> experimental.alignTime(alignTo: v.timeRangeStart)
+
+
+
+
+averagedDataRf = getAverage(unionData: unionDataRf, workBenchName: "Random Forest")
+ |> yield(name: "averagedDataRF")
+
+
+
+
+//for svd
+unionDataSvd = union(tables: [svd1, svd2, svd3, svd4, svd5])
+|> experimental.alignTime(alignTo: v.timeRangeStart)
+
+
+
+
+averagedDataSvd = getAverage(unionData: unionDataSvd, workBenchName: "SVD")
+ |> yield(name: "averagedDataSVD")
+
+
+
+
+//for wc
+unionDataWc = union(tables: [wc1, wc2, wc3, wc4, wc5])
+|> experimental.alignTime(alignTo: v.timeRangeStart)
+
+
+
+
+averagedDataWc = getAverage(unionData: unionDataWc, workBenchName: "WC")
+ |> yield(name: "averagedDataWC")
+
+
+//combine the data into a single table. There is a documentation on how pivot work on the influx site
+ combinedUnionData = union(tables: [averagedDataTerasort, averagedDataRf, averagedDataSvd, averagedDataWc])
+|> pivot(rowKey: ["_time"], columnKey: ["workBench"], valueColumn: "average")
+|> set(key: "Measurement", value: "container_cpu_cfs_periods_total")
+|> group(columns: ["Measurement"])
+|> yield(name: "sa")
+
+
+
+
+
+
+
+
+
